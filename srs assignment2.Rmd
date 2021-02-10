@@ -1,0 +1,221 @@
+---
+title: "Statistical Research Skills Assignment 2"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(sfsmisc)
+```
+# Simulation Report: Kernel Density Estimation vs Histogram
+
+
+## Data Generating Processes and Preliminary Experiments
+
+The goal for this experiment is to study the performance of kernel density estimation and compare its strengths and weaknesses with another density estimation method (histogram).
+
+### Data Simulation
+
+To conduct this experiment, I chose to simulate three sets of data from different distributions:
+
+Scenario 1: A standard normal distribution $\phi(y)=\frac{1}{\sqrt{2\pi}}exp(-y^2/2)$
+
+Scenario 2: A $t_5$ distribution $g(y)=\frac{2}{c\sqrt{5\pi}}(1+y^2/5)^{-3}$
+
+Scenario 3: A logistic distribution $f(y)=\frac{exp(-y)}{[1+exp(-y)]^2}$
+
+## One-Shot Experiment
+
+### Experiment Steps
+
+First, I conducted a one-shot experiment to compare how well each estimation recovers the true densities. I chose to simulate n = 100 observations and plotted the original density, histogram and kernel density in the same figure. In this experiment, I used the default bandwidth for kernel density estimations and the default bin size for histograms.
+
+
+```{r cars, echo= FALSE}
+# One-shot experiment
+set.seed(1)
+n = 100
+# Generate three sets of data
+y_1 = rnorm(n)
+y_2 = rt(n, 5)
+y_3 = rlogis(n)
+```
+
+```{r, echo = FALSE, fig.height=4, fig.width=14}
+# Plot the original density against the kernel density estimator and histogram.
+x = seq(-10,10,length = 1000)
+plt_1 = dnorm(x, mean = 0, sd = 1)
+plt_2 = dt(x, 5)
+plt_3 = dlogis(x)
+
+# Plot for the first set of data
+hist(y_1, freq = FALSE, main = 'Scenario 1')
+lines(density(y_1, kernel = 'gaussian'), col = 'blue')
+lines(x, plt_1, type="l", lwd=1, col = 'red')
+legend('topleft', lty=c(1,1), col=c('blue', "red"), legend=c("kernel", 'original'))
+```
+
+```{r, echo = FALSE, fig.height=4, fig.width=14}
+# Plot for the second set of data
+hist(y_2, freq = FALSE, main = 'Scenario 2')
+lines(density(y_2, kernel = 'gaussian'), col = 'blue')
+lines(x, plt_2, type="l", lwd=1, col = 'red')
+legend('topleft', lty=c(1,1), col=c('blue', "red"), legend=c("kernel", 'original'))
+
+```
+
+
+```{r, echo = FALSE, fig.height=4, fig.width=14}
+# Plot for the third set of data
+hist(y_3, freq = FALSE, main = 'Scenario 3', ylim = c(0,0.25))
+lines(density(y_3, kernel = 'gaussian'), col = 'blue')
+lines(x, plt_3, type="l", lwd=1, col = 'red')
+legend('topright', lty=c(1,1), col=c('blue', "red"), legend=c("kernel", 'original'))
+```
+
+### Results
+
+From the results we can tell that neither estimation was accurate; but the kernel density clearly did a better job recovering the true curves. Both estimations did well recovering the true curve in the first scenario. For the second scenario, both the Kernel density and histogram overestimated the highest density point, the histogram was off by a large margin. For the third scenario, the histogram underestimated the highest density point by nearly 0.05.
+
+### Kernel Density vs Histogram
+
+From the one-shop experiment, we can tell that kernel density is a better option for recovering density plots. However, it is still not very accurate when the observation number is limited. Histogram on the other hand is not a good choice for estimating continuous densities. If the bin width is too large, often times it leads to a larger error in certain regions. It also does not recover the two ends of a distribution.
+
+
+## Monte Carlo Testing
+
+### Experiment Steps
+
+For the monte carlo experiment, I simulated R = 1000 times with n = 250, 500, and 1000 observations for each scenario. Then I used R package sfsmisc [1] to compute the integrated squared error for kernel density and histogram in each scenario. Then I created one box and whisker plot for each scenario and compared the ISE between two estimators with different number of observations.
+
+
+```{r pressure, echo=FALSE}
+# Monte Carlo method
+set.seed(1)
+# Set n = 250, R = 1000
+n = 250
+R = 1000
+# Create empty matrices to store generated data
+ynorm = matrix(NA, R, n)
+y_t = matrix(NA, R, n)
+y_logis = matrix(NA, R, n)
+# Create empty lists to store ISE
+ISE = ISE_2 = ISE_3 = ISE_4 = ISE_5 = ISE_6 = list()
+
+# Use for loop to generate and store data and ISE
+for (i in 1:R){
+   # generate data for f1, f2, and f3
+   ynorm[i, ] = rnorm(n)
+   y_t[i, ] = rt(n, 5)
+   y_logis[i, ] = rlogis(n)
+   est = density(ynorm[i, ],kernel = "gaussian")
+   est_2 = density(y_t[i, ],kernel = "gaussian")
+   est_3 = density(y_logis[i, ],kernel = "gaussian")
+   norm_hist = hist(ynorm[i, ], plot = FALSE)
+   t_hist = hist(y_t[i, ], plot = FALSE)
+   logis_hist = hist(y_logis[i, ], plot = FALSE)
+   # Use package sfsmisc to get integrated squared error and store them in lists
+   ISE[i] = sfsmisc::integrate.xy(x = est$x, (est$y - dnorm(est$x))^2)
+   ISE_2[i] = sfsmisc::integrate.xy(x = norm_hist$mids, (norm_hist$density - dnorm(norm_hist$mids))^2)
+   ISE_3[i] = sfsmisc::integrate.xy(x = est_2$x, (est_2$y - dt(est_2$x, 5))^2)
+   ISE_4[i] = sfsmisc::integrate.xy(x = t_hist$mids, (t_hist$density - dt(t_hist$mids, 5))^2)
+   ISE_5[i] = sfsmisc::integrate.xy(x = est_3$x, (est_3$y - dlogis(est_3$x))^2)
+   ISE_6[i] = sfsmisc::integrate.xy(x = logis_hist$mids, (logis_hist$density - dlogis(logis_hist$mids))^2)
+}
+```
+
+
+```{r, echo = FALSE}
+# Set n = 500
+set.seed(1)
+n = 500
+R = 1000
+ynorm2 = matrix(NA, R, n)
+y_t2 = matrix(NA, R, n)
+y_logis2 = matrix(NA, R, n)
+ISE2 = ISE2_2 = ISE2_3 = ISE2_4 = ISE2_5 = ISE2_6 = list()
+
+for (i in 1:R){
+   ynorm2[i, ] = rnorm(n)
+   y_t2[i, ] = rt(n, 5)
+   y_logis2[i, ] = rlogis(n)
+   est2 = density(ynorm2[i, ],kernel = "gaussian")
+   est2_2 = density(y_t2[i, ],kernel = "gaussian")
+   est2_3 = density(y_logis2[i, ],kernel = "gaussian")
+   norm2_hist = hist(ynorm2[i, ], plot = FALSE)
+   t2_hist = hist(y_t2[i, ], plot = FALSE)
+   logis2_hist = hist(y_logis2[i, ], plot = FALSE)
+   ISE2[i] = sfsmisc::integrate.xy(x = est2$x, (est2$y - dnorm(est2$x))^2)
+   ISE2_2[i] = sfsmisc::integrate.xy(x = norm2_hist$mids, (norm2_hist$density - dnorm(norm2_hist$mids))^2)
+   ISE2_3[i] = sfsmisc::integrate.xy(x = est2_2$x, (est2_2$y - dt(est2_2$x, 5))^2)
+   ISE2_4[i] = sfsmisc::integrate.xy(x = t2_hist$mids, (t2_hist$density - dt(t2_hist$mids, 5))^2)
+   ISE2_5[i] = sfsmisc::integrate.xy(x = est2_3$x, (est2_3$y - dlogis(est2_3$x))^2)
+   ISE2_6[i] = sfsmisc::integrate.xy(x = logis2_hist$mids, (logis2_hist$density - dlogis(logis2_hist$mids))^2)
+}
+```
+
+
+```{r, echo = FALSE}
+# Set n = 1000
+set.seed(1)
+n = 1000
+R = 1000
+ynorm3 = matrix(NA, R, n)
+y_t3 = matrix(NA, R, n)
+y_logis3 = matrix(NA, R, n)
+ISE3 = ISE3_2 = ISE3_3 = ISE3_4 = ISE3_5 = ISE3_6 = list()
+
+for (i in 1:R){
+   ynorm3[i, ] = rnorm(n)
+   y_t3[i, ] = rt(n, 5)
+   y_logis3[i, ] = rlogis(n)
+   est3 = density(ynorm3[i, ],kernel = "gaussian")
+   est3_2 = density(y_t3[i, ],kernel = "gaussian")
+   est3_3 = density(y_logis3[i, ],kernel = "gaussian")
+   norm3_hist = hist(ynorm3[i, ], plot = FALSE)
+   t3_hist = hist(y_t3[i, ], plot = FALSE)
+   logis3_hist = hist(y_logis3[i, ], plot = FALSE)
+   ISE3[i] = sfsmisc::integrate.xy(x = est3$x, (est3$y - dnorm(est3$x))^2)
+   ISE3_2[i] = sfsmisc::integrate.xy(x = norm3_hist$mids, (norm3_hist$density - dnorm(norm3_hist$mids))^2)
+   ISE3_3[i] = sfsmisc::integrate.xy(x = est3_2$x, (est3_2$y - dt(est3_2$x, 5))^2)
+   ISE3_4[i] = sfsmisc::integrate.xy(x = t3_hist$mids, (t3_hist$density - dt(t3_hist$mids, 5))^2)
+   ISE3_5[i] = sfsmisc::integrate.xy(x = est3_3$x, (est3_3$y - dlogis(est3_3$x))^2)
+   ISE3_6[i] = sfsmisc::integrate.xy(x = logis3_hist$mids, (logis3_hist$density - dlogis(logis3_hist$mids))^2)
+}
+```
+
+```{r, echo = FALSE, fig.height=4, fig.width=14}
+# Store the ISE for f1 in a dataframe
+df1 = do.call(rbind.data.frame, Map('c', ISE, ISE_2, ISE2, ISE2_2, ISE3, ISE3_2))
+# Draw a box plot
+boxplot(df1[ ,1], df1[ ,2], df1[ ,3], df1[ ,4], df1[ ,5], df1[ ,6], ylim = c(0,0.01), col = c('#99CCFF', '#FFCC00'), main = 'Scenario 1', xlab = 'n from 250 to 1000')
+legend('topright', lty=c(1,1), col=c('#99CCFF', '#FFCC00'), legend=c("kernel", 'histogram'))
+```
+
+
+```{r, echo = FALSE, fig.height=4, fig.width=14}
+# Store the ISE for f2 in a dataframe
+df2 = do.call(rbind.data.frame, Map('c', ISE_3, ISE_4, ISE2_3, ISE2_4, ISE3_3, ISE3_4))
+boxplot(df2[ ,1], df2[ ,2], df2[ ,3], df2[ ,4], df2[ ,5], df2[ ,6], ylim = c(0,0.01), col = c('#99CCFF', '#FFCC00'), main = 'Scenario 2', xlab = 'n from 250 to 1000')
+legend('topright', lty=c(1,1), col=c('#99CCFF', '#FFCC00'), legend=c("kernel", 'histogram'))
+```
+
+```{r, echo = FALSE, fig.height=4, fig.width=14}
+# Store the ISE for f3 in a dataframe
+df3 = do.call(rbind.data.frame, Map('c', ISE_5, ISE_6, ISE2_5, ISE2_6, ISE3_5, ISE3_6))
+boxplot(df3[ ,1], df3[ ,2], df3[ ,3], df3[ ,4], df3[ ,5], df3[ ,6], col = c('#99CCFF', '#FFCC00'), main = 'Scenario 3', xlab = 'n from 250 to 1000', ylim = c(0,0.008))
+legend('topright', lty=c(1,1), col=c('#99CCFF', '#FFCC00'), legend=c("kernel", 'histogram'))
+```
+
+### Results
+
+The kernel density and histogram both performed well in this test, with their third quantiles ranged below 0.01 for all scenarios. Histogram had a noticeable higher ISE range in the first scenario, but it dropped significantly at n = 1000. Both estimations performed extremely well for the second and third case, with their third quantile lied under 0.005 at n = 250 and 0.002 at n = 1000.
+
+### Reference
+
+[1] Gi_F(stackexchange username) "How to compute integrated squared error for kernel density estimation in R?" https://stats.stackexchange.com/questions/390777/how-to-compute-integrated-squared-error-for-kernel-density-estimation-in-r. 5 Feb 2019. Last accessed: 9 Feb 2021
+
+Github link:
